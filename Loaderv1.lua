@@ -1,151 +1,160 @@
+-- Services
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- State
+local desyncActive = false
+local dragging = false
+local dragStart, startPos
 
 -- GUI Setup
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "DesyncGui"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = PlayerGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Lenon Hub Desync"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- Main frame with rounded corners
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 220, 0, 100)
-mainFrame.Position = UDim2.new(0.5, -110, 0.5, -50)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-mainFrame.BorderSizePixel = 0
-mainFrame.Active = true
-mainFrame.Draggable = true
-mainFrame.Parent = screenGui
+-- BACK LAYER (compact medium size, shorter height)
+local BackLayer = Instance.new("Frame")
+BackLayer.Size = UDim2.new(0, 240, 0, 120) -- width 240, height 120
+BackLayer.Position = UDim2.new(0.5, -120, 0.2, 0) -- centered horizontally
+BackLayer.BackgroundColor3 = Color3.fromRGB(30, 30, 30) -- dark gray
+BackLayer.BorderSizePixel = 0
+BackLayer.Parent = ScreenGui
 
--- Add rounded corners
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 12)  -- adjust the radius
-corner.Parent = mainFrame
+local BackCorner = Instance.new("UICorner")
+BackCorner.CornerRadius = UDim.new(0, 25) -- rounded corners
+BackCorner.Parent = BackLayer
 
--- Optionally add a border or stroke
-local stroke = Instance.new("UIStroke")
-stroke.Color = Color3.fromRGB(200, 200, 200)
-stroke.Thickness = 1
-stroke.Parent = mainFrame
+-- FRONT BUTTON (small-medium rectangle)
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(0, 160, 0, 50) -- small-medium
+ToggleButton.Position = UDim2.new(0.5, -80, 0.5, -25) -- centered inside back layer
+ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50) -- dark button
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255) -- fully white
+ToggleButton.Text = "Desync On"
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.TextSize = 24
+ToggleButton.AutoButtonColor = false
+ToggleButton.Parent = BackLayer
 
--- Title Label
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, 0, 0, 24)
-titleLabel.Position = UDim2.new(0, 0, 0, 0)
-titleLabel.BackgroundTransparency = 1
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.TextSize = 18
-titleLabel.Font = Enum.Font.SourceSansBold
-titleLabel.Text = "Onyx Desync"
-titleLabel.Parent = mainFrame
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(0, 15)
+ButtonCorner.Parent = ToggleButton
 
--- Desync Button
-local toggleButton = Instance.new("TextButton")
-toggleButton.Size = UDim2.new(1, -20, 0, 40)
-toggleButton.Position = UDim2.new(0, 10, 0, 30)
-toggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-toggleButton.BorderSizePixel = 0
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.TextSize = 20
-toggleButton.Font = Enum.Font.SourceSans
-toggleButton.Text = "Desync ON"
-toggleButton.Parent = mainFrame
+-- Stroke for button
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Thickness = 2
+UIStroke.Color = Color3.fromRGB(70, 70, 70)
+UIStroke.Transparency = 0.3
+UIStroke.Parent = ToggleButton
 
--- Rounded corners on button
-local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(0, 8)
-btnCorner.Parent = toggleButton
+-- Dragging functionality
+BackLayer.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = BackLayer.Position
+	end
+end)
 
--- "PREMIUM" Label Below Button
-local premiumLabel = Instance.new("TextLabel")
-premiumLabel.Size = UDim2.new(1, 0, 0, 18)
-premiumLabel.Position = UDim2.new(0, 0, 1, -18)  -- inside bottom of mainFrame
-premiumLabel.BackgroundTransparency = 1
-premiumLabel.Text = "PREMIUM"
-premiumLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-premiumLabel.TextSize = 14
-premiumLabel.Font = Enum.Font.SourceSansSemibold
-premiumLabel.Parent = mainFrame
+BackLayer.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		if dragging then
+			local delta = input.Position - dragStart
+			BackLayer.Position = UDim2.new(
+				startPos.X.Scale,
+				startPos.X.Offset + delta.X,
+				startPos.Y.Scale,
+				startPos.Y.Offset + delta.Y
+			)
+		end
+	end
+end)
 
--- Desync Function (same as before)
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
+	end
+end)
+
+-- Desync Functions
 local function enableMobileDesync()
-    local success, error = pcall(function()
-        local backpack = LocalPlayer:WaitForChild("Backpack")
-        local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        local humanoid = character:WaitForChild("Humanoid")
+	if desyncActive then return false end
+	local success, errorMsg = pcall(function()
+		local backpack = LocalPlayer:WaitForChild("Backpack")
+		local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+		local humanoid = character:WaitForChild("Humanoid")
 
-        local packages = ReplicatedStorage:WaitForChild("Packages", 5)
-        if not packages then
-            warn("Packages not found")
-            return false
-        end
+		local packages = ReplicatedStorage:WaitForChild("Packages", 5)
+		if not packages then return false end
 
-        local netFolder = packages:WaitForChild("Net", 5)
-        if not netFolder then
-            warn("Net folder not found")
-            return false
-        end
+		local netFolder = packages:WaitForChild("Net", 5)
+		if not netFolder then return false end
 
-        local useItemRemote = netFolder:WaitForChild("RE/UseItem", 5)
-        local teleportRemote = netFolder:WaitForChild("RE/QuantumCloner/OnTeleport", 5)
-        if not useItemRemote or not teleportRemote then
-            warn("Remotes not found")
-            return false
-        end
+		local useItemRemote = netFolder:WaitForChild("RE/UseItem", 5)
+		local teleportRemote = netFolder:WaitForChild("RE/QuantumCloner/OnTeleport", 5)
+		if not useItemRemote or not teleportRemote then return false end
 
-        local toolNames = {"Quantum Cloner", "Brainrot", "brainrot"}
-        local tool
-        for _, toolName in ipairs(toolNames) do
-            tool = backpack:FindFirstChild(toolName) or character:FindFirstChild(toolName)
-            if tool then break end
-        end
+		local toolNames = {"Quantum Cloner", "Brainrot", "brainrot"}
+		local tool
+		for _, toolName in ipairs(toolNames) do
+			tool = backpack:FindFirstChild(toolName) or character:FindFirstChild(toolName)
+			if tool then break end
+		end
 
-        if not tool then
-            for _, item in ipairs(backpack:GetChildren()) do
-                if item:IsA("Tool") then
-                    tool = item
-                    break
-                end
-            end
-        end
+		if not tool then
+			for _, item in ipairs(backpack:GetChildren()) do
+				if item:IsA("Tool") then
+					tool = item
+					break
+				end
+			end
+		end
 
-        if tool and tool.Parent == backpack then
-            humanoid:EquipTool(tool)
-            task.wait(0.5)
-        end
+		if tool and tool.Parent == backpack then
+			humanoid:EquipTool(tool)
+			task.wait(0.5)
+		end
 
-        if setfflag then setfflag("WorldStepMax", "-9999999999") end
-        task.wait(0.2)
-        useItemRemote:FireServer()
-        task.wait(1)
-        teleportRemote:FireServer()
-        task.wait(2)
-        if setfflag then setfflag("WorldStepMax", "-1") end
+		if setfflag then setfflag("WorldStepMax", "-9999999999") end
+		task.wait(0.2)
+		useItemRemote:FireServer()
+		task.wait(1)
+		teleportRemote:FireServer()
+		task.wait(2)
+		if setfflag then setfflag("WorldStepMax", "-1") end
+	end)
 
-        return true
-    end)
+	if not success then
+		warn("Error activating desync: "..tostring(errorMsg))
+		return false
+	end
 
-    if not success then
-        warn("Error activating desync: " .. tostring(error))
-        return false
-    end
-    return true
+	desyncActive = true
+	return true
 end
 
--- Button Click Logic
-toggleButton.MouseButton1Click:Connect(function()
-    toggleButton.AutoButtonColor = false
-    toggleButton.Active = false
-    local success = enableMobileDesync()
-    if not success then
-        toggleButton.Text = "Failed"
-    end
+local function disableMobileDesync()
+	if not desyncActive then return end
+	pcall(function()
+		if setfflag then setfflag("WorldStepMax", "-1") end
+	end)
+	desyncActive = false
+end
+
+-- Toggle button
+ToggleButton.MouseButton1Click:Connect(function()
+	if not desyncActive then
+		enableMobileDesync()
+	else
+		disableMobileDesync()
+	end
 end)
 
 -- Reset on respawn
 LocalPlayer.CharacterAdded:Connect(function()
-    toggleButton.Text = "Desync ON"
-    toggleButton.Active = true
-    toggleButton.AutoButtonColor = true
+	desyncActive = false
+	disableMobileDesync()
+end)
